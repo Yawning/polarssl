@@ -354,6 +354,11 @@ void error_strerror( int ret, char *buf, size_t buflen )
             snprintf( buf, buflen, "X509 - Read/write of file failed" );
 #endif /* POLARSSL_X509_PARSE_C */
 
+#if defined(POLARSSL_X509_WRITE_C)
+        if( use_ret == -(POLARSSL_ERR_X509_BUFFER_TOO_SMALL) )
+            snprintf( buf, buflen, "X509 - Output buffer too small" );
+#endif /* POLARSSL_X509_WRITE_C */
+
         if( strlen( buf ) == 0 )
             snprintf( buf, buflen, "UNKNOWN ERROR CODE (%04X)", use_ret );
     }

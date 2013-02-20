@@ -30,6 +30,7 @@
 #include "polarssl/asn1write.h"
 #include "polarssl/x509write.h"
 #include "polarssl/x509.h"
+#include "polarssl/base64.h"
 #include "polarssl/sha1.h"
 #include "polarssl/sha2.h"
 #include "polarssl/sha4.h"
@@ -280,6 +281,56 @@ int x509_write_cert_req( unsigned char *buf, size_t size, rsa_context *rsa,
     ASN1_CHK_ADD( len, asn1_write_tag( &c2, buf, ASN1_CONSTRUCTED | ASN1_SEQUENCE ) );
 
     return( len );
+}
+
+int x509_write_cert_pem( unsigned char *buf, size_t *size, x509_cert *cert )
+{
+    static const int header_len = 29;
+    static const int footer_len = 25;
+    static unsigned char pem_header[] = { "-----BEGIN CERTIFICATE-----\r\n" };
+    static unsigned char pem_footer[] = { "-----END CERTIFICATE-----" };
+    size_t len = 0, i;
+    unsigned char *p = NULL;
+
+    base64_encode( p, &len, cert->raw.p, cert->raw.len );
+    len += ( len / 64 + 1 ) * 2;
+    len += header_len;
+    len += footer_len;
+
+    if( *size < len )
+    {
+        *size = len;
+        return( POLARSSL_ERR_X509_BUFFER_TOO_SMALL );
+    }
+
+    p = buf;
+
+    /* Append the header */
+
+    memcpy( p, pem_header, header_len );
+    p += header_len;
+
+    for ( i = 0; i < cert->raw.len; )
+    {
+        size_t to_encode = ( cert->raw.len - i > 48 ) ? 48 : cert->raw.len - i;
+        size_t dlen = len - ( p - buf );
+
+        base64_encode( p, &dlen, cert->raw.p + i, to_encode );
+
+        p += dlen;
+        *p++ = '\r';
+        *p++ = '\n';
+
+        i+= to_encode;
+    }
+
+    /* Append the footer */
+
+    memcpy( p, pem_footer, footer_len );
+    p += footer_len;
+    *p = '\0';
+
+    return( 0 );
 }
 
 #endif
