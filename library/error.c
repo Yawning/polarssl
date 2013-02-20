@@ -354,7 +354,7 @@ void error_strerror( int ret, char *buf, size_t buflen )
             snprintf( buf, buflen, "X509 - Read/write of file failed" );
 #endif /* POLARSSL_X509_PARSE_C */
 
-#if defined(POLARSSL_X509_WRITE_C)
+#if defined(POLARSSL_X509_WRITE_C) && defined(POLARSSL_BASE64_C)
         if( use_ret == -(POLARSSL_ERR_X509_BUFFER_TOO_SMALL) )
             snprintf( buf, buflen, "X509 - Output buffer too small" );
 #endif /* POLARSSL_X509_WRITE_C */

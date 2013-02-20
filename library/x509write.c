@@ -283,6 +283,7 @@ int x509_write_cert_req( unsigned char *buf, size_t size, rsa_context *rsa,
     return( len );
 }
 
+#if defined(POLARSSL_BASE64_C)
 int x509_write_cert_pem( unsigned char *buf, size_t *size, x509_cert *cert )
 {
     static const int header_len = 29;
@@ -332,5 +333,6 @@ int x509_write_cert_pem( unsigned char *buf, size_t *size, x509_cert *cert )
 
     return( 0 );
 }
+#endif /* POLARSSL_BASE64_C */
 
 #endif
