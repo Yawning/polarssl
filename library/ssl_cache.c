@@ -47,102 +47,110 @@ int ssl_cache_get( void *data, ssl_session *session )
 {
     time_t t = time( NULL );
     ssl_cache_context *cache = (ssl_cache_context *) data;
-    ssl_cache_entry *cur, *entry;
+    ssl_cache_entry *entry;
 
-    cur = cache->chain;
-    entry = NULL;
+    HASH_FIND( hh, cache->sessions, session->id, session->length, entry );
 
-    while( cur != NULL )
-    {
-        entry = cur;
-        cur = cur->next;
+    /* Cache miss */
 
-        if( cache->timeout != 0 &&
+    if( entry == NULL )
+        return( 1 );
+
+    /* Entry expired */
+
+    if( cache->timeout != 0 &&
             (int) ( t - entry->timestamp ) > cache->timeout )
-            continue;
+        return( 1 );
 
-        if( session->ciphersuite != entry->session.ciphersuite ||
-            session->compression != entry->session.compression ||
-            session->length != entry->session.length )
-            continue;
+    /* Ciphersuite/Compression changed, or hash collision */
 
-        if( memcmp( session->id, entry->session.id,
+    if( session->ciphersuite != entry->session.ciphersuite ||
+        session->compression != entry->session.compression ||
+        session->length != entry->session.length )
+        return( 1 );
+
+    /* Check for a hash collision */
+
+    if( memcmp( session->id, entry->session.id,
                     entry->session.length ) != 0 )
-            continue;
+        return( 1 );
 
-        memcpy( session->master, entry->session.master, 48 );
-        return( 0 );
-    }
+    memcpy( session->master, entry->session.master, 48 );
 
-    return( 1 );
+    return( 0 );
 }
 
 int ssl_cache_set( void *data, const ssl_session *session )
 {
-    time_t t = time( NULL ), oldest = 0;
+    time_t t = time( NULL );
     ssl_cache_context *cache = (ssl_cache_context *) data;
-    ssl_cache_entry *cur, *prv, *old = NULL;
-    int count = 0;
+    ssl_cache_entry *entry;
 
-    cur = cache->chain;
-    prv = NULL;
+    HASH_FIND( hh, cache->sessions, session->id, session->length, entry );
 
-    while( cur != NULL )
+    if( entry == NULL )
     {
-        count++;
+        /* Add a fresh entry to the cache */
 
-        if( cache->timeout != 0 &&
-            (int) ( t - cur->timestamp ) > cache->timeout )
+        if ( cache->max_entries > 0 && 
+             HASH_COUNT( cache->sessions ) >= (size_t) cache->max_entries )
         {
-            cur->timestamp = t;
-            break; /* expired, reuse this slot, update timestamp */
-        }
+            /* Reuse the oldest entry if max_entries reached */
 
-        if( memcmp( session->id, cur->session.id, cur->session.length ) == 0 )
-            break; /* client reconnected, keep timestamp for session id */
+            entry = cache->sessions;    /* uthash hash tables also are lists */
 
-        if( oldest == 0 || cur->timestamp < oldest )
-        {
-            oldest = cur->timestamp;
-            old = cur;
-        }
+            HASH_DEL( cache->sessions, entry );
 
-        prv = cur;
-        cur = cur->next;
-    }
-
-    if( cur == NULL )
-    {
-        /*
-         * Reuse oldest entry if max_entries reached
-         */
-        if( old != NULL && count >= cache->max_entries )
-        {
-            cur = old;
-            memset( &cur->session, 0, sizeof( ssl_session ) );
+            memset( &entry->session, 0, sizeof( ssl_session ) );
         }
         else
         {
-            cur = (ssl_cache_entry *) malloc( sizeof( ssl_cache_entry ) );
-            if( cur == NULL )
+            entry = (ssl_cache_entry *) malloc( sizeof( ssl_cache_entry ) );
+
+            if( entry == NULL )
                 return( 1 );
 
-            memset( cur, 0, sizeof( ssl_cache_entry ) );
-
-            if( prv == NULL )
-                cache->chain = cur;
-            else
-                prv->next = cur;
+            memset( entry, 0, sizeof( ssl_cache_entry ) );
         }
 
-        cur->timestamp = t;
+        entry->timestamp = t;
+    }
+    else
+    {
+        /* There is an existing entry for this already, re-use it. */
+
+        if( cache->timeout == 0 || 
+            (int) ( t - entry->timestamp ) <= cache->timeout )
+        {
+            /*
+             * Update it and just return without removing/re-adding the entry
+             * from/to the hash to ensure that the hash's internal list is
+             * both in inertion order and in timestamp order.
+             */
+
+            memcpy( &entry->session, session, sizeof( ssl_session ) );
+
+            // Do not include peer_cert in cache entry
+            //
+            entry->session.peer_cert = NULL;
+
+            return( 0 );
+        }
+
+        /* expired, update timestamp */
+
+        entry->timestamp = t;
+
+        HASH_DEL( cache->sessions, entry );
     }
 
-    memcpy( &cur->session, session, sizeof( ssl_session ) );
-    
+    memcpy( &entry->session, session, sizeof( ssl_session ) );
+
     // Do not include peer_cert in cache entry
     //
-    cur->session.peer_cert = NULL;
+    entry->session.peer_cert = NULL;
+
+    HASH_ADD( hh, cache->sessions, session.id, entry->session.length, entry );
 
     return( 0 );
 }
@@ -163,17 +171,13 @@ void ssl_cache_set_max_entries( ssl_cache_context *cache, int max )
 
 void ssl_cache_free( ssl_cache_context *cache )
 {
-    ssl_cache_entry *cur, *prv;
+    ssl_cache_entry *entry, *tmp;
 
-    cur = cache->chain;
-
-    while( cur != NULL )
+    HASH_ITER( hh, cache->sessions, entry, tmp )
     {
-        prv = cur;
-        cur = cur->next;
-
-        ssl_session_free( &prv->session );
-        free( prv );
+        HASH_DEL( cache->sessions, entry );
+        ssl_session_free( &entry->session );
+        free( entry );
     }
 }
 

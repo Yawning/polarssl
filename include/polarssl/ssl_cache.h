@@ -28,6 +28,7 @@
 #define POLARSSL_SSL_CACHE_H
 
 #include "ssl.h"
+#include "uthash.h"
 
 #define SSL_CACHE_DEFAULT_TIMEOUT       86400   /*!< 1 day  */
 #define SSL_CACHE_DEFAULT_MAX_ENTRIES      50   /*!< Maximum entries in cache */
@@ -46,7 +47,7 @@ struct _ssl_cache_entry
 {
     time_t timestamp;           /*!< entry timestamp    */
     ssl_session session;        /*!< entry session      */
-    ssl_cache_entry *next;      /*!< chain pointer      */
+    UT_hash_handle hh;          /*!< hash table handle  */
 };
 
 /**
@@ -54,7 +55,7 @@ struct _ssl_cache_entry
  */
 struct _ssl_cache_context
 {
-    ssl_cache_entry *chain;     /*!< start of the chain     */
+    ssl_cache_entry *sessions;  /*!< the cache (hash table) */
     int timeout;                /*!< cache entry timeout    */
     int max_entries;            /*!< maximum entries        */
 };
