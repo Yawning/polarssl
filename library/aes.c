@@ -37,6 +37,9 @@
 #if defined(POLARSSL_PADLOCK_C)
 #include "polarssl/padlock.h"
 #endif
+#if defined(POLARSSL_AESNI_C)
+#include "polarssl/aesni.h"
+#endif
 
 /*
  * 32-bit integer manipulation macros (little endian)
@@ -64,6 +67,10 @@
 #if defined(POLARSSL_PADLOCK_C) &&                      \
     ( defined(POLARSSL_HAVE_X86) || defined(PADLOCK_ALIGN16) )
 static int aes_padlock_ace = -1;
+#endif
+
+#if defined(POLARSSL_AESNI_C) && defined(POLARSSL_HAVE_IA)
+static int aes_aesni = -1;
 #endif
 
 #if defined(POLARSSL_AES_ROM_TABLES)
@@ -468,15 +475,23 @@ int aes_setkey_enc( aes_context *ctx, const unsigned char *key, unsigned int key
         default : return( POLARSSL_ERR_AES_INVALID_KEY_LENGTH );
     }
 
+    ctx->rk = RK = ctx->buf;
+
 #if defined(POLARSSL_PADLOCK_C) && defined(PADLOCK_ALIGN16)
     if( aes_padlock_ace == -1 )
         aes_padlock_ace = padlock_supports( PADLOCK_ACE );
 
     if( aes_padlock_ace )
         ctx->rk = RK = PADLOCK_ALIGN16( ctx->buf );
-    else
 #endif
-    ctx->rk = RK = ctx->buf;
+
+#if defined(POLARSSL_AESNI_C) && defined(AESNI_ALIGN16)
+    if( aes_aesni == -1)
+        aes_aesni = aesni_supported();
+
+    if( aes_aesni )
+        ctx->rk = RK = AESNI_ALIGN16( ctx->buf );
+#endif
 
     for( i = 0; i < (keysize >> 5); i++ )
     {
@@ -572,6 +587,8 @@ int aes_setkey_dec( aes_context *ctx, const unsigned char *key, unsigned int key
         default : return( POLARSSL_ERR_AES_INVALID_KEY_LENGTH );
     }
 
+    ctx->rk = RK = ctx->buf;
+
 #if defined(POLARSSL_PADLOCK_C) && defined(PADLOCK_ALIGN16)
     if( aes_padlock_ace == -1 )
         aes_padlock_ace = padlock_supports( PADLOCK_ACE );
@@ -580,7 +597,14 @@ int aes_setkey_dec( aes_context *ctx, const unsigned char *key, unsigned int key
         ctx->rk = RK = PADLOCK_ALIGN16( ctx->buf );
     else
 #endif
-    ctx->rk = RK = ctx->buf;
+
+#if defined(POLARSSL_AESNI_C) && defined(AESNI_ALIGN16)
+    if( aes_aesni == -1)
+        aes_aesni = aesni_supported();
+
+    if( aes_aesni )
+        ctx->rk = RK = AESNI_ALIGN16( ctx->buf );
+#endif
 
     ret = aes_setkey_enc( &cty, key, keysize );
     if( ret != 0 )
@@ -680,6 +704,13 @@ int aes_crypt_ecb( aes_context *ctx,
         // If padlock data misaligned, we just fall back to
         // unaccelerated mode
         //
+    }
+#endif
+
+#if defined(POLARSSL_AESNI_C) && defined(POLARSSL_HAVE_IA)
+    if ( aes_aesni )
+    {
+        return( aesni_xcryptecb( ctx, mode, input, output ) );
     }
 #endif
 
@@ -792,6 +823,13 @@ int aes_crypt_cbc( aes_context *ctx,
         // If padlock data misaligned, we just fall back to
         // unaccelerated mode
         //
+    }
+#endif
+
+#if defined(POLARSSL_AESNI_C) && defined(POLARSSL_HAVE_IA)
+    if ( aes_aesni )
+    {
+        return( aesni_xcryptcbc( ctx, mode, length, iv, input, output ) );
     }
 #endif
 

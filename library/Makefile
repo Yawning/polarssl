@@ -17,6 +17,9 @@ endif
 # To compile on Plan9:
 # CFLAGS += -D_BSD_EXTENSION
 
+# To compile AES-NI:
+# CFLAGS += -msse2 -maes
+
 # To compile as a shared library:
 ifdef SHARED
 CFLAGS += -fPIC
@@ -34,9 +37,9 @@ DLEXT=dll
 LDFLAGS += -lws2_32
 endif
 
-OBJS=	aes.o		arc4.o		asn1parse.o		\
-		asn1write.o base64.o	bignum.o		\
-		blowfish.o	camellia.o					\
+OBJS=	aes.o		aesni.o		arc4.o			\
+		asn1parse.o asn1write.o base64.o		\
+		bignum.o	blowfish.o	camellia.o		\
 		certs.o		cipher.o	cipher_wrap.o	\
 		ctr_drbg.o	debug.o		des.o			\
 		dhm.o		entropy.o	entropy_poll.o	\

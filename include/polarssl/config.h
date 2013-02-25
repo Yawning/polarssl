@@ -339,6 +339,19 @@
 #define POLARSSL_AES_C
 
 /**
+ * \def POLARSSL_AESNI_C
+ *
+ * Enable Intel AES-NI support on x86/x86_64.
+ *
+ * Module:  library/aesni.c
+ * Caller:  library/aes.c
+ *
+ * This modules adds support for Intel AES-NI on x86/x86_64.
+ *
+#define POLARSSL_AESNI_C
+ */
+
+/**
  * \def POLARSSL_ARC4_C
  *
  * Enable the ARCFOUR stream cipher.
