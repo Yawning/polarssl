@@ -194,6 +194,7 @@ int gcm_crypt_and_tag( gcm_context *ctx,
     size_t orig_len = length * 8;
     size_t orig_add_len = add_len * 8;
     unsigned char **xor_p;
+    uint32_t ctr;
 
     memset( y, 0x00, 16 );
     memset( work_buf, 0x00, 16 );
@@ -263,9 +264,9 @@ int gcm_crypt_and_tag( gcm_context *ctx,
     {
         use_len = ( length < 16 ) ? length : 16;
 
-        for( i = 16; i > 0; i-- )
-            if( ++y[i - 1] != 0 )
-                break;
+        GET_UINT32_BE(ctr,y,12);
+        ctr++;
+        PUT_UINT32_BE(ctr,y,12);
 
         aes_crypt_ecb( &ctx->aes_ctx, AES_ENCRYPT, y, ectr );
 
